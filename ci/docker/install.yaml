@@ -1,0 +1,8 @@
+version: '3.8'
+services:
+  effectual-devsecops:
+    command: ["bash", "scripts/install.sh"]
+    image: effectual-devsecops:latest
+
+    #volumes:
+    #  - ../output:/work/output

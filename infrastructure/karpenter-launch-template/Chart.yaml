@@ -1,0 +1,6 @@
+apiVersion: v2
+name: karpenter-launch-template
+description: Helm Wrapper Chart for AWS Karpenter launch template
+type: application
+version: 0.1.0
+

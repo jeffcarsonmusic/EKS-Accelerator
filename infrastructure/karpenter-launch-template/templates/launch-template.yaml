@@ -1,0 +1,71 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Custom launch template for karpenter 
+Mappings:
+  AMIRegionMap:
+    ap-northeast-1:
+      AMIID: ami-03975f2e9ba15a239
+    ap-northeast-2:
+      AMIID: ami-0cf0040757ee5bc10
+    ap-northeast-3:
+      AMIID: ami-0c86303d1dc006087
+    ap-south-1:
+      AMIID: ami-0c6be64e9e5093d11
+    ap-southeast-1:
+      AMIID: ami-0a620d8210b5d94ac
+    ap-southeast-2:
+      AMIID: ami-0a67f6c248865b974
+    ca-central-1:
+      AMIID: ami-0feb37aa1c3bb701d
+    eu-central-1:
+      AMIID: ami-0c37e3f6cdf6a9007
+    eu-north-1:
+      AMIID: ami-0f47e499c06cba4fc
+    eu-west-1:
+      AMIID: ami-0c18b526d255a74c7
+    eu-west-2:
+      AMIID: ami-00ae0aff712708ab9
+    eu-west-3:
+      AMIID: ami-0ae82a5040056d138
+    sa-east-1:
+      AMIID: ami-065dfb4c03045c92b
+    us-east-1:
+      AMIID: ami-0e1b6f116a3733fef
+    us-east-2:
+      AMIID: ami-0656dd273bd6e9a2f
+    us-west-1:
+      AMIID: ami-0167be2eb86ccfbb6
+    us-west-2:
+      AMIID: ami-085e8e02353a59de5
+Resources:
+  CustomKarpenterLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        IamInstanceProfile:
+          Name: eksctl-KarpenterNodeInstanceProfile-{{ .Values.clusterName }}
+        ImageId: !FindInMap
+          - AMIRegionMap
+          - {{ .Values.awsRegion }}
+          - AMIID
+        # UserData is Base64 Encoded. 
+        UserData: !Base64 |
+            #!/bin/bash -xe
+            /etc/eks/bootstrap.sh {{ .Values.clusterName }}
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: {{ .Values.volumeSize }}
+              VolumeType: {{ .Values.volumeType }}
+              Encrypted: {{ .Values.encrypted }}
+        #KeyName: <if needed>
+            
+        # The SecurityGroup must be associated with the cluster VPC
+        SecurityGroupIds: 
+            # Node to node security group
+            - Fn::ImportValue: 
+                'eksctl-{{ .Values.clusterName }}-cluster::SharedNodeSecurityGroup'
+            # Node to control plane security group
+            - Fn::ImportValue: 
+                'eksctl-{{ .Values.clusterName }}-cluster::SecurityGroup'
+
+      LaunchTemplateName: KarpenterCustomLaunchTemplate

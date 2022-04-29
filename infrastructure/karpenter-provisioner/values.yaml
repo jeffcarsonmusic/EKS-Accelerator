@@ -1,0 +1,9 @@
+clusterName: "EKS-Cluster"
+awsRegion: "us-east-2"
+provisionerName: "default"
+ttlSecondsAfterEmpty: 120
+deploymentType: ["on-demand"] 
+
+
+
+
