@@ -2,7 +2,7 @@ version: '3.8'
 services:
   effectual-devsecops:
     command: ["bash", "scripts/uninstall.sh"]
-    image: effectual-devsecops:latest
+    image: devsecops:latest
 
     #volumes:
     #  - ../output:/work/output
