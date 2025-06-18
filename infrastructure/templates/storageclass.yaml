@@ -1,0 +1,19 @@
+{{- if .Values.storage.defaultClass }}
+---
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: {{ .Values.storage.defaultClass }}
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: ebs.csi.aws.com
+volumeBindingMode: {{ .Values.storage.volumeBindingMode }}
+parameters:
+  type: {{ .Values.storage.defaultClass }}
+  encrypted: {{ .Values.storage.encrypted | quote }}
+  {{- if eq .Values.storage.defaultClass "gp3" }}
+  # GP3 specific parameters (optional)
+  # iops: "3000"
+  # throughput: "125"
+  {{- end }}
+{{- end }}

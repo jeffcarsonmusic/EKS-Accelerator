@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-export EKS_DIR="infrastructure/eks-cluster"
+export INFRA_DIR="infrastructure"
 export SCRIPTS_DIR="scripts"
 
 source ${SCRIPTS_DIR}/user.env
@@ -16,8 +16,8 @@ echo "********Terminating karpenter owned deployments**********"
 ### Clean up Karpenter deployments and karpenter launched nodes
 ###=================================================================================================###
 
-# get active deployments from all namespaces, omitting kube-system\|karpenter\|coredns\|ebs-csi-controller' from the list to be deleted.
-deployments=$(kubectl get deployment --all-namespaces --no-headers | awk -F' ' '{print $1}' | grep -v 'kube-system\|karpenter\|coredns\|#ebs-csi-controller' | xargs -n1 | sort -u)
+# get active namespaces with deployments, omitting kube-system, karpenter, and other system namespaces
+deployments=$(kubectl get deployment --all-namespaces --no-headers | awk '{print $1}' | grep -v '^kube-system$\|^karpenter$\|^default$' | sort -u)
 
 # test for deployments and delete them if present
 if [ -z "$deployments" ]
@@ -49,9 +49,9 @@ if [ -n "$karp_nodes" ]
         echo "No nodes found"
 fi
 
-# delete Karpenter launch template and policy stack
-aws cloudformation delete-stack --stack-name KarpenterLaunchTemplateStack --region ${AWS_REGION}
-aws cloudformation wait stack-delete-complete --stack-name KarpenterLaunchTemplateStack --region ${AWS_REGION} 
+# delete Karpenter resources (NodePool and NodeClass)
+kubectl delete nodepool --all || true
+kubectl delete ec2nodeclass --all || true
 
 # ensure ec2 spot service linked role is created for karpenter auto-provisioning/scaling to work
 aws iam delete-service-linked-role --aws-service-name spot.amazonaws.com 2> /dev/null || true

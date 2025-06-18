@@ -1,0 +1,75 @@
+# Default values for eks-complete chart
+
+# AWS Configuration
+awsRegion: "us-west-2"
+clusterName: "eks-accelerator"
+eksVersion: "1.31"
+
+# Node Configuration
+nodeInstanceType: "t3.small"
+managedNodeGroup:
+  minSize: 1
+  desiredCapacity: 2
+  maxSize: 4
+  volumeSize: 20
+  volumeType: gp3
+  volumeEncrypted: true
+
+# Network Configuration
+vpc:
+  cidr: 10.10.0.0/16
+
+# Karpenter Configuration
+karpenter:
+  version: "1.0.0"
+  nodePool:
+    # Capacity type: spot, on-demand, or both
+    capacityTypes:
+      - spot
+    # Instance types to use (can specify families like t3.* or specific types)
+    instanceTypes:
+      - t3.small
+      - t3.medium
+      - t3.large
+    # Architecture: amd64, arm64, or both
+    architectures:
+      - amd64
+    # Node properties
+    userData: |
+      #!/bin/bash
+      /etc/eks/bootstrap.sh {{ .Values.clusterName }}
+    # Disruption settings
+    disruption:
+      consolidationPolicy: WhenUnderutilized
+      expireAfter: 30m
+    # Resource limits
+    limits:
+      cpu: 1000
+      memory: 1000Gi
+
+# Storage Configuration
+storage:
+  defaultClass: gp3
+  encrypted: true
+  volumeBindingMode: WaitForFirstConsumer
+
+# Logging Configuration
+logging:
+  enableTypes:
+    - audit
+    - api
+    - authenticator
+    - controllerManager
+  retentionDays: 7
+
+# Add-ons
+addons:
+  ebsCsiDriver:
+    enabled: true
+    version: 1.44.0
+  
+# Tags (applied to all resources)
+tags:
+  Environment: "development"
+  ManagedBy: "eks-accelerator"
+  Karpenter: "enabled"

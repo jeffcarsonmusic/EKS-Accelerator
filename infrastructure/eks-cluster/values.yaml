@@ -1,7 +1,0 @@
-awsRegion: "us-east-2"
-clusterName: "effectual-devsecops-cluster"
-eksVersion: "1.21"
-nodeInstanceType: "t3.medium"
-
-vpc:
-  cidr: 10.10.0.0/16

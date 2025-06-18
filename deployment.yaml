@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: karpenter-test-deployment
+spec:
+  replicas: 50
+  selector:
+    matchLabels:
+      app: karpenter-test
+  template:
+    metadata:
+      labels:
+        app: karpenter-test
+    spec:
+      containers:
+      - name: stress
+        image: alpine:latest
+        command: ["sh", "-c", "apk add --no-cache stress-ng && stress-ng --cpu 1 --vm 1 --vm-bytes 128M --timeout 60s"]
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+
+
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: karpenter-test-deployment
+# spec:
+#   replicas: 100
+#   selector:
+#     matchLabels:
+#       app: karpenter-test
+#   template:
+#     metadata:
+#       labels:
+#         app: karpenter-test
+#     spec:
+#       containers:
+#       - name: nginx
+#         image: nginx:latest
+#         resources:
+#           requests:
+#             cpu: "500m"
+#             memory: "512Mi"

@@ -7,13 +7,17 @@ metadata:
   version: {{ .Values.eksVersion | quote }}
   tags:
     karpenter.sh/discovery: {{ .Values.clusterName }}
+    {{- range $key, $value := .Values.tags }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
 
 iam:
   withOIDC: true
 
+{{- if .Values.addons.ebsCsiDriver.enabled }}
 addons:
 - name: aws-ebs-csi-driver
-  version: 1.4.0
+  version: {{ .Values.addons.ebsCsiDriver.version }}
   attachPolicy: 
     Statement:
     - Effect: Allow
@@ -102,6 +106,7 @@ addons:
       Condition:
         StringLike:
           ec2:ResourceTag/ebs.csi.aws.com/cluster: 'true'
+{{- end }}
 
 vpc:
   cidr: {{ .Values.vpc.cidr }}
@@ -111,13 +116,13 @@ vpc:
 
 managedNodeGroups:
   - name: managed-ng-private-1
-    volumeType: gp3
-    volumeEncrypted: true
+    volumeType: {{ .Values.managedNodeGroup.volumeType }}
+    volumeEncrypted: {{ .Values.managedNodeGroup.volumeEncrypted }}
     instanceType: {{ .Values.nodeInstanceType }}
-    minSize: 1
-    desiredCapacity: 2
-    maxSize: 4
-    volumeSize: 20
+    minSize: {{ .Values.managedNodeGroup.minSize }}
+    desiredCapacity: {{ .Values.managedNodeGroup.desiredCapacity }}
+    maxSize: {{ .Values.managedNodeGroup.maxSize }}
+    volumeSize: {{ .Values.managedNodeGroup.volumeSize }}
     privateNetworking: true
     updateConfig:
       maxUnavailable: 2
@@ -125,15 +130,15 @@ managedNodeGroups:
       role: worker
     tags:
       nodegroup-role: worker
-      k8s.io/cluster-autoscaler/enabled: "true"
-      k8s.io/cluster-autoscaler/{{ .Values.clusterName }}: "owned"
+      {{- range $key, $value := .Values.tags }}
+      {{ $key }}: {{ $value | quote }}
+      {{- end }}
 
 cloudWatch:
   clusterLogging: 
-    enableTypes: ["audit", "api", "authenticator", "controllerManager"]
-    logRetentionInDays: 7
+    enableTypes: {{ .Values.logging.enableTypes | toJson }}
+    logRetentionInDays: {{ .Values.logging.retentionDays }}
 
-# Consider using Karpenter instead of cluster-autoscaler...
 karpenter:
-  version: "0.5.6"
+  version: {{ .Values.karpenter.version | quote }}
   createServiceAccount: true

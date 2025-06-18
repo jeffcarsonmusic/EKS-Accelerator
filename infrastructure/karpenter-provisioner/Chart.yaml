@@ -1,6 +1,0 @@
-apiVersion: v2
-name: karpenter-provisioner
-description: Helm Wrapper Chart for AWS Karpenter provisioner
-type: application
-version: 0.7.0
-

@@ -2,9 +2,7 @@
 set -e
 
 # Set Environment variables
-export EKS_DIR="infrastructure/eks-cluster"
-export KARP_LAUNCH_TEMPLATE="infrastructure/karpenter-launch-template"
-export PROV_DIR="infrastructure/karpenter-provisioner"
+export INFRA_DIR="infrastructure"
 export SCRIPTS_DIR="scripts"
 
 source ${SCRIPTS_DIR}/user.env
@@ -21,15 +19,23 @@ echo "********Launching EKS cluster***********"
 # Ensure ec2 spot service linked role is created for karpenter auto-provisioning/scaling to work
 aws iam create-service-linked-role --aws-service-name spot.amazonaws.com 2> /dev/null || true
 
-# Configure/render the eks cluster template
-helm template eks-cluster ${EKS_DIR} \
+# Configure/render the infrastructure template
+helm template eks-accelerator ${INFRA_DIR} \
     --set awsRegion=${AWS_REGION} \
     --set clusterName=${CLUSTER_NAME} \
+    --set nodeInstanceType=${NODE_INSTANCE_TYPE:-t3.small} \
+    --set vpc.cidr=${VPC_CIDR:-10.10.0.0/16} \
     > ${SCRIPTS_DIR}/generated-cluster-template.yaml
+
+# Extract specific resources from the template
+awk '/^apiVersion: eksctl.io\/v1alpha5/{flag=1} flag; /^---/{flag=0}' ${SCRIPTS_DIR}/generated-cluster-template.yaml > ${SCRIPTS_DIR}/cluster.yaml
+awk '/^kind: StorageClass/{flag=1} flag; /^---/{flag=0}' ${SCRIPTS_DIR}/generated-cluster-template.yaml > ${SCRIPTS_DIR}/storageclass.yaml
+awk '/^apiVersion: karpenter.sh\/v1/{flag=1} flag; /^---/{flag=0}' ${SCRIPTS_DIR}/generated-cluster-template.yaml > ${SCRIPTS_DIR}/nodepool.yaml
+awk '/^apiVersion: karpenter.k8s.aws\/v1/{flag=1} flag' ${SCRIPTS_DIR}/generated-cluster-template.yaml > ${SCRIPTS_DIR}/nodeclass.yaml
 
 # Create the eks cluster if cluster doesn't exist
 if ! eksctl get cluster --region "${AWS_REGION}" --name "${CLUSTER_NAME}" >/dev/null 2>&1 ; then
-    eksctl create cluster -f ${SCRIPTS_DIR}/generated-cluster-template.yaml
+    eksctl create cluster -f ${SCRIPTS_DIR}/cluster.yaml
 fi
 
 echo " "
@@ -40,8 +46,8 @@ aws eks wait cluster-active --region=${AWS_REGION} --name ${CLUSTER_NAME}
 echo " "
 echo "********Patching Storage Class***********"
 # Update default storage class to encrypted storage class (standard unencrypted gp2 is aws eks default)
-kubectl apply -f ${EKS_DIR}/storageclass.yaml
-kubectl patch storageclass gp2 -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'
+kubectl apply -f ${SCRIPTS_DIR}/storageclass.yaml
+kubectl patch storageclass gp2 -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}' || true
 
 echo " "
 echo "********Waiting for the EKS node group to be healthy***********"
@@ -60,35 +66,20 @@ aws eks update-kubeconfig --region ${AWS_REGION} --name ${CLUSTER_NAME}
 ###=================================================================================================###
 
 echo " "
-echo "********Deploy Karpenter Launch Template Cloudformation***********"
-# render launch template cloudformation for karpenter. this can be deprecated once Karpenter allows for declaring encrypted EBS in the provisioner spec below.
-helm template karpenter-launch-template ${KARP_LAUNCH_TEMPLATE} \
-    --set awsRegion=${AWS_REGION} \
-    --set clusterName=${CLUSTER_NAME} \
-    > ${SCRIPTS_DIR}/generated-karp-launch-template.yaml
+echo "********Create Karpenter NodePool and NodeClass***********"
+# Karpenter v1.0+ supports native EBS encryption, so no CloudFormation template needed
 
-# launch rendered cloudformation for karpenter launch template 
-aws cloudformation create-stack \
-  --stack-name KarpenterLaunchTemplateStack \
-  --template-body file://${SCRIPTS_DIR}/generated-karp-launch-template.yaml \
-  --capabilities CAPABILITY_NAMED_IAM --query StackId \
-  --region ${AWS_REGION}
-
-# wait for stack to launch
-aws cloudformation wait stack-create-complete \
-    --stack-name KarpenterLaunchTemplateStack \
-    --region ${AWS_REGION}
+# Apply Karpenter NodePool and EC2NodeClass
+kubectl apply -f ${SCRIPTS_DIR}/nodepool.yaml
+kubectl apply -f ${SCRIPTS_DIR}/nodeclass.yaml
 
 echo " "
-echo "********Create Karpenter provisioner***********"
-# Create Karpenter provisioner. Karpenter is installed in the cluster configuration and should be ready for a provisioner at this point. Provisioner documentation and configuration options are at https://karpenter.sh/v0.6.2/provisioner/
-
-# Configure/render the karpenter provisioner template
-helm template karpenter-provisioner ${PROV_DIR} \
-    --set clusterName=${CLUSTER_NAME} \
-    > ${SCRIPTS_DIR}/generated-provisioner-template.yaml
-
-kubectl apply -f ${SCRIPTS_DIR}/generated-provisioner-template.yaml
+echo "********Verifying Karpenter Installation***********"
+# Wait for Karpenter to be ready
+kubectl wait --for=condition=available --timeout=300s deployment/karpenter -n karpenter || {
+    echo "Warning: Karpenter deployment not ready yet. Check logs with:"
+    echo "kubectl logs -n karpenter -l app.kubernetes.io/name=karpenter"
+}
 
 echo "Done"
 

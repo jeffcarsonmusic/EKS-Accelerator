@@ -1,8 +1,0 @@
-awsRegion: "us-east-2"
-clusterName: "EKS-Cluster"
-volumeSize: 100
-volumeType: gp3
-encrypted: true
-
-
-

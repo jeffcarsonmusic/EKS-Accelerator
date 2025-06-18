@@ -1,6 +1,5 @@
-version: '3.8'
 services:
-  effectual-devsecops:
+  devsecops:
     command: ["bash", "scripts/uninstall.sh"]
     image: devsecops:latest
 
